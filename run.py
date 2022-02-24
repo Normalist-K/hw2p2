@@ -30,7 +30,7 @@ def train(cfg, model, device, train_loader, optimizer, criterion, epoch, scaler,
 
     losses = []
     true_y_list, pred_y_list = [], []
-    for batch_idx, (data, true_y) in tqdm(enumerate(train_loader), total=len(train_loader), leave=False, position=0, desc='Train'):
+    for batch_idx, (data, true_y) in tqdm(enumerate(train_loader), total=len(train_loader), leave=True, position=0, desc='Train'):
         data = data.to(device)
         true_y = true_y.to(device)
 
@@ -101,7 +101,7 @@ def test(cfg, model, device, valid_loader, criterion):
     true_y_list = []
     pred_y_list = []
     losses = []
-    for data, true_y in tqdm(valid_loader, total=len(valid_loader), desc='Valid', position=0, leave=False):
+    for data, true_y in tqdm(valid_loader, total=len(valid_loader), desc='Valid', position=0, leave=True):
         data = data.to(device)
         true_y = true_y.to(device)                
         
@@ -122,7 +122,7 @@ def test(cfg, model, device, valid_loader, criterion):
 def inference(cfg, model, device, test_loader):
     model.eval()
     pred_y_list = []
-    for data in tqdm(test_loader, total=len(test_loader), desc='Infer', position=0, leave=False):
+    for data in tqdm(test_loader, total=len(test_loader), desc='Infer', position=0, leave=True):
         data = data.to(device)
         
         with torch.no_grad():
@@ -138,7 +138,7 @@ def face_embedding(model, ver_loader, device):
     model.eval()
 
     feats_dict = dict()
-    for batch_idx, (imgs, path_names) in tqdm(enumerate(ver_loader), total=len(ver_loader), position=0, leave=False, desc='Embedding'):
+    for batch_idx, (imgs, path_names) in tqdm(enumerate(ver_loader), total=len(ver_loader), position=0, leave=True, desc='Embedding'):
         imgs = imgs.to(device)
 
         with torch.no_grad():
@@ -159,7 +159,7 @@ def verification(val_veri_csv, feats_dict, similarity_metric, device):
 
     pred_similarities = []
     gt_similarities = []
-    for line in tqdm(open(val_veri_csv).read().splitlines()[1:], position=0, leave=False, desc='Veri'): # skip header
+    for line in tqdm(open(val_veri_csv).read().splitlines()[1:], position=0, leave=True, desc='Veri'): # skip header
         img_path1, img_path2, gt = line.split(",")
 
         # TODO: Use the similarity metric
@@ -187,7 +187,7 @@ def verification_inference(test_veri_csv, feats_dict, similarity_metric, device)
     
     # Now, loop through the csv and compare each pair, getting the similarity between them
     pred_similarities = []
-    for line in tqdm(open(test_veri_csv).read().splitlines()[1:], position=0, leave=False, desc='Veri_infer'): # skip header
+    for line in tqdm(open(test_veri_csv).read().splitlines()[1:], position=0, leave=True, desc='Veri_infer'): # skip header
         img_path1, img_path2 = line.split(",")
 
         # TODO: Finish up verification testing.
