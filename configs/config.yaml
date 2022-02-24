@@ -1,0 +1,35 @@
+save_name: 'test'
+msg: none
+device: 'cuda:0'
+mixed_precision: False
+DATA_DIR: '../input/dlhw2p2'
+save_path_sub: '../submission/'
+save_path_out: '../weights/'
+
+resume: False
+load_path: '/root/class/cmu/DL/hw1p2/weights/exp20_sam.pth'
+
+log_interval: 5000
+DEBUG: False
+
+# learning
+epoch: 15
+es_patience: 3 # if es_patient == 0, do not early stop.
+
+# data
+batch_size: 2048
+context: 40
+masking: True
+freq_mask_param: 5
+
+# MLP
+batchnorm: True
+weight_init: 'kaiming_uniform' # kaiming_normal, xavier_uniform, xavier_normal, None
+
+# optimizer
+optimizer: adamw # adamw, sgd, sam
+lr: 0.001
+weight_decay: 0.1
+lr_factor: 0.1
+lr_patience: 1
+momentum: 0.9
