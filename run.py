@@ -225,6 +225,11 @@ def main(cfg):
         scaler = GradScaler()
     else:
         scaler = None
+
+    if not os.path.exists(cfg.save_path_sub): 
+        os.makedirs(cfg.save_path_sub)
+    if not os.path.exists(cfg.save_path_out): 
+        os.makedirs(cfg.save_path_out)
     
     # load classification dataset / loader
     DATA_DIR = cfg.DATA_DIR # '/kaggle/input/dlhw2p2/'
@@ -309,7 +314,7 @@ def main(cfg):
     best_valid_acc, es_patience = 0, 0
     for epoch in range(start_epoch, start_epoch + cfg['epoch']):
         train_loss, train_acc = train(cfg, model, device, train_loader, optimizer, criterion, epoch, scaler, scheduler)
-        print(f'Epoch: {epoch}')
+        print(f'\nEpoch: {epoch}')
         print(f'Train Loss: {train_loss:.6f}\tAcc: {train_acc:.4f}')
         valid_loss, valid_acc = test(cfg, model, device, valid_loader, criterion)
         if cfg.scheduler == 'ReduceLROnPlateau':
