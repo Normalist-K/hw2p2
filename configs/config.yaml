@@ -13,7 +13,7 @@ DEBUG: False
 epoch: 25
 es_patience: 3 # if es_patient == 0, do not early stop.
 criterion: CrossEntropyLoss
-scheduler: ReduceLROnPlateau # ReduceLROnPlateau, CosineAnnealingLR
+scheduler: CosineAnnealingLR # ReduceLROnPlateau, CosineAnnealingLR
 mixed_precision: False
 
 # data
@@ -21,7 +21,7 @@ batch_size: 256
 
 # model
 batchnorm: True
-weight_init: 'kaiming_uniform' # kaiming_normal, xavier_uniform, xavier_normal, None
+weight_init: None # kaiming_normal, xavier_uniform, xavier_normal, None
 
 # optimizer
 optimizer: sgd # adamw, sgd, sam

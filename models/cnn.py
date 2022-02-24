@@ -35,27 +35,27 @@ class BaselineCNN(nn.Module):
             # Food for thought: Why is the first conv kernel size 7, not kernel size 3?
 
             # Conv group 1
-            nn.Conv2d(3, 64, kernel_size=7, stride=4, bias=False), # B, 64, 55, 55
+            nn.Conv2d(3, 64, kernel_size=7, stride=4, padding=3, bias=False), # B, 64, 55, 55
             nn.BatchNorm2d(64),
-            nn.ReLU(),
+            nn.GELU(),
 
             # Conv group 2
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, bias=False), # B, 128, 27, 27
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1, bias=False), # B, 128, 27, 27
             nn.BatchNorm2d(128),
-            nn.ReLU(),
+            nn.GELU(),
 
             # Conv group 3
-            nn.Conv2d(128, 256, kernel_size=3, stride=2, bias=False), # B, 256, 13, 13
+            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1, bias=False), # B, 256, 13, 13
             nn.BatchNorm2d(256),
-            nn.ReLU(),
+            nn.GELU(),
 
             # Conv group 4
-            nn.Conv2d(256, 512, kernel_size=3, stride=2, bias=False), # B, 512, 6, 6
+            nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1, bias=False), # B, 512, 6, 6
             nn.BatchNorm2d(512),
-            nn.ReLU(),
+            nn.GELU(),
 
             # Average pool over & reduce the spatial dimensions to (1, 1)
-            nn.AvgPool2d(6),
+            nn.AdaptiveAvgPool2d((1, 1)),
             
             # Collapse (Flatten) the trivial (1, 1) dimensions
             nn.Flatten()
@@ -77,6 +77,7 @@ class BaselineCNN(nn.Module):
         out = self.cls_layer(feats)
 
         if return_feats:
+            feats = nn.functional.normalize(feats, p=2.0, dim=1)
             return out, feats
         else:
             return out
