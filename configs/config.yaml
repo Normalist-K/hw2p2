@@ -20,6 +20,7 @@ mixed_precision: False
 batch_size: 256
 
 # model
+batchnorm: True
 weight_init: 'kaiming_uniform' # kaiming_normal, xavier_uniform, xavier_normal, None
 
 # optimizer
@@ -29,3 +30,6 @@ weight_decay: 0.0001
 lr_factor: 0.1
 lr_patience: 1
 momentum: 0.9
+
+# regularization
+rdrop: 0

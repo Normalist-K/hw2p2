@@ -1,8 +1,5 @@
 from copy import deepcopy
 import os
-import csv
-import random
-from turtle import position
 from tqdm import tqdm
 from glob import glob
 
@@ -10,8 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as ttf
