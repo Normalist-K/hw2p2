@@ -77,6 +77,6 @@ class BaselineCNN(nn.Module):
         out = self.cls_layer(feats)
 
         if return_feats:
-            return feats
+            return out, feats
         else:
             return out

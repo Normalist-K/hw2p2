@@ -1,35 +1,31 @@
-save_name: 'test'
-msg: none
+save_name: 'baseline'
 device: 'cuda:0'
-mixed_precision: False
-DATA_DIR: '../input/dlhw2p2'
-save_path_sub: '../submission/'
-save_path_out: '../weights/'
+DATA_DIR: '/kaggle/input/dlhw2p2'
+save_path_sub: '/kaggle/working/submission/'
+save_path_out: '/kaggle/working/weights/'
 
 resume: False
 load_path: '/root/class/cmu/DL/hw1p2/weights/exp20_sam.pth'
 
-log_interval: 5000
 DEBUG: False
 
 # learning
-epoch: 15
+epoch: 25
 es_patience: 3 # if es_patient == 0, do not early stop.
+criterion: CrossEntropyLoss
+scheduler: ReduceLROnPlateau # ReduceLROnPlateau, CosineAnnealingLR
+mixed_precision: False
 
 # data
-batch_size: 2048
-context: 40
-masking: True
-freq_mask_param: 5
+batch_size: 256
 
-# MLP
-batchnorm: True
+# model
 weight_init: 'kaiming_uniform' # kaiming_normal, xavier_uniform, xavier_normal, None
 
 # optimizer
-optimizer: adamw # adamw, sgd, sam
-lr: 0.001
-weight_decay: 0.1
+optimizer: sgd # adamw, sgd, sam
+lr: 0.1
+weight_decay: 0.0001
 lr_factor: 0.1
 lr_patience: 1
 momentum: 0.9
