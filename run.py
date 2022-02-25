@@ -12,14 +12,17 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as ttf
 from torch.cuda.amp import GradScaler, autocast
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 from sklearn.metrics import accuracy_score, roc_auc_score
 import hydra
 from omegaconf import OmegaConf
 import wandb
 
-from models.cnn import BaselineCNN
+from models.cnn import BaselineCNN, VGG16
 from datasets.classification import ClassificationTestSet
 from datasets.verification import VerificationDataset
+from datasets.transform import AlbumTransforms, train_transforms, val_transforms
 from utils.utils import weight_decay_custom, compute_kl_loss, SAM
 
 
@@ -88,7 +91,6 @@ def train(cfg, model, device, train_loader, optimizer, criterion, epoch, scaler,
 
         if cfg.scheduler == 'CosineAnnealingLR':
             scheduler.step()
-            wandb.log({"lr": optimizer.param_groups[0]['lr']})
 
 
     loss_epoch = np.average(losses)
@@ -173,11 +175,10 @@ def verification(val_veri_csv, feats_dict, similarity_metric, device):
         pred_similarities.append(similarity.cpu())
         gt_similarities.append(int(gt))
 
-    pred_similarities = np.array(similarity)
+    pred_similarities = np.array(pred_similarities)
     gt_similarities = np.array(gt_similarities)
 
     auc = roc_auc_score(gt_similarities, pred_similarities)
-    print("AUC:", auc)
     return auc
 
 def verification_inference(test_veri_csv, feats_dict, similarity_metric, device):
@@ -206,13 +207,13 @@ def gen_cls_submission(cfg, predictions):
     assert len(predictions) == 35000
     test_names = [str(i).zfill(6) + ".jpg" for i in range(len(predictions))]
     submission = pd.DataFrame(zip(test_names, predictions), columns=['id', 'label'])
-    submission.to_csv(os.path.join(cfg.save_path_sub, f'{cfg.save_name}_cls_sub.csv'), index=False)
+    submission.to_csv(os.path.join(cfg.path.submissions, f'{cfg.save_name}_cls_sub.csv'), index=False)
 
 def gen_ver_submission(cfg, predictions):
     assert len(predictions) == 667600
     test_names = [i for i in range(len(predictions))]
     submission = pd.DataFrame(zip(test_names, predictions), columns=['id', 'match'])
-    submission.to_csv(os.path.join(cfg.save_path_sub, f'{cfg.save_name}_ver_sub.csv'), index=False)
+    submission.to_csv(os.path.join(cfg.path.submissions, f'{cfg.save_name}_ver_sub.csv'), index=False)
 
 
 @hydra.main(config_path='configs', config_name='config')
@@ -226,28 +227,26 @@ def main(cfg):
     else:
         scaler = None
 
-    if not os.path.exists(cfg.save_path_sub): 
-        os.makedirs(cfg.save_path_sub)
-    if not os.path.exists(cfg.save_path_out): 
-        os.makedirs(cfg.save_path_out)
+    if not os.path.exists(cfg.path.submissions): 
+        os.makedirs(cfg.path.submissions)
+    if not os.path.exists(cfg.path.weights): 
+        os.makedirs(cfg.path.weights)
     
     # load classification dataset / loader
-    DATA_DIR = cfg.DATA_DIR # '/kaggle/input/dlhw2p2/'
-    CLS_DIR = os.path.join(DATA_DIR, '11-785-s22-hw2p2-classification')
-    VER_DIR = os.path.join(DATA_DIR, '11-785-s22-hw2p2-verification')
+    BASE_DIR = cfg.path.base # '/kaggle/input/dlhw2p2/'
+    CLS_DIR = os.path.join(BASE_DIR, '11-785-s22-hw2p2-classification')
+    VER_DIR = os.path.join(BASE_DIR, '11-785-s22-hw2p2-verification')
 
     CLS_TRAIN_DIR = os.path.join(CLS_DIR, "train_subset/train_subset") # This is a smaller subset of the data. Should change this to classification/classification/train
     CLS_VAL_DIR = os.path.join(CLS_DIR, "classification/classification/dev")
     CLS_TEST_DIR = os.path.join(CLS_DIR, "classification/classification/test")
 
-    train_transforms = [ttf.ToTensor()]
-    val_transforms = [ttf.ToTensor()]
 
     train_dataset = torchvision.datasets.ImageFolder(CLS_TRAIN_DIR,
-                                                    transform=ttf.Compose(train_transforms))
+                                                    transform=AlbumTransforms(train_transforms))
     val_dataset = torchvision.datasets.ImageFolder(CLS_VAL_DIR,
-                                                   transform=ttf.Compose(val_transforms))
-    test_dataset = ClassificationTestSet(CLS_TEST_DIR, ttf.Compose(val_transforms))
+                                                   transform=AlbumTransforms(val_transforms))
+    test_dataset = ClassificationTestSet(CLS_TEST_DIR, AlbumTransforms(val_transforms))
 
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size,
                             shuffle=True, drop_last=True, num_workers=2)
@@ -261,9 +260,9 @@ def main(cfg):
     VER_TEST_DIR = os.path.join(VER_DIR, 'verification/verification/test')
 
     val_veri_dataset = VerificationDataset(VER_VAL_DIR,
-                                           ttf.Compose(val_transforms))
+                                           AlbumTransforms(val_transforms))
     test_veri_dataset = VerificationDataset(VER_TEST_DIR,
-                                            ttf.Compose(val_transforms))
+                                            AlbumTransforms(val_transforms))
 
     val_ver_loader = torch.utils.data.DataLoader(val_veri_dataset, batch_size=cfg.batch_size, 
                                                  shuffle=False, num_workers=1)
@@ -271,7 +270,7 @@ def main(cfg):
                                                   shuffle=False, num_workers=1)
     
     device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
-    model = BaselineCNN().to(device)
+    model = VGG16().to(device)
     print(model)
 
     # For this homework, we're limiting you to 35 million trainable parameters, as
@@ -305,11 +304,11 @@ def main(cfg):
 
     start_epoch = 0
     if cfg.resume:
-        checkpoint = torch.load(cfg.load_path)
+        checkpoint = torch.load(cfg.path.pretrained)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
-        print(f"Model loaded: {cfg.load_path}")
+        print(f"Model loaded: {cfg.path.pretrained}")
 
     best_valid_acc, es_patience = 0, 0
     for epoch in range(start_epoch, start_epoch + cfg['epoch']):
@@ -319,13 +318,13 @@ def main(cfg):
         valid_loss, valid_acc = test(cfg, model, device, valid_loader, criterion)
         if cfg.scheduler == 'ReduceLROnPlateau':
             scheduler.step(valid_acc)
-            wandb.log({"lr": optimizer.param_groups[0]['lr']})
         print(f'Valid Loss: {valid_loss}\tAcc: {valid_acc}')
         if not cfg.DEBUG:
             wandb.log({"train_loss": train_loss,
                        "train_acc": train_acc,
                        "valid_loss": valid_loss, 
-                       "valid_acc": valid_acc})
+                       "valid_acc": valid_acc,
+                       "lr": optimizer.param_groups[0]['lr']})
     
         if valid_acc > best_valid_acc:
             best_model = deepcopy(model)
@@ -336,7 +335,7 @@ def main(cfg):
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': valid_loss,
                 'acc': valid_acc,
-            }, os.path.join(cfg.save_path_out, f'{cfg.save_name}.pth')) 
+            }, os.path.join(cfg.path.weights, f'{cfg.save_name}.pth')) 
             es_patience = 0
             print(f'Epoch {epoch} Model saved. ({cfg.save_name}.pth)')
         else:
@@ -352,8 +351,8 @@ def main(cfg):
 
     val_feats_dict = face_embedding(best_model, val_ver_loader, device)
     
-    val_veri_csv = os.paht.join(VER_DIR, "verification/verification/verification_dev.csv")
-    similarity_metric = nn.CosineSimilarity()
+    val_veri_csv = os.path.join(VER_DIR, "verification/verification/verification_dev.csv")
+    similarity_metric = nn.CosineSimilarity(dim=0)
     auc = verification(val_veri_csv, val_feats_dict, similarity_metric, device)
     print("Verification AUC: ", auc)
     if not cfg.DEBUG:
@@ -361,7 +360,7 @@ def main(cfg):
 
     test_feats_dict = face_embedding(best_model, test_ver_loader, device)
 
-    test_veri_csv = os.paht.join(VER_DIR, "verification/verification/verification_test.csv")
+    test_veri_csv = os.path.join(VER_DIR, "verification/verification/verification_test.csv")
     pred_similarities = verification_inference(test_veri_csv, test_feats_dict, similarity_metric, device)
     gen_ver_submission(cfg, pred_similarities)
     print("ver_submission saved.")

@@ -1,0 +1,4 @@
+base: '/kaggle/input/dlhw2p2'
+submissions: '/kaggle/working/submissions/'
+weights: '/kaggle/working/weights/'
+pretrained: '/kaggle/input/best_model.pth'

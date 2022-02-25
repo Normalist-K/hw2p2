@@ -81,3 +81,41 @@ class BaselineCNN(nn.Module):
             return out, feats
         else:
             return out
+
+
+class VGG16(nn.Module):
+    """CNN Model based on VGG16"""
+
+    def __init__(self, num_classes=7000):
+        super(VGG16, self).__init__()
+        self.convolution_part = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(64), nn.GELU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(128), nn.GELU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(128, 256, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(256), nn.GELU(),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(256), nn.GELU(),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(256), nn.GELU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(256, 512, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(512), nn.GELU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(512), nn.GELU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(512), nn.GELU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(512), nn.GELU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(512), nn.GELU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False), nn.BatchNorm2d(512), nn.GELU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        self.channelavg_part = nn.AvgPool2d(7)
+        self.classifier_part = nn.Linear(512, num_classes, bias=False)
+
+    def forward(self, data, return_feats=False):
+        conv_out = self.convolution_part(data)
+        avg_out = self.channelavg_part(conv_out)
+        feats = avg_out.reshape(avg_out.size(0), -1)
+        classifier_out = self.classifier_part(feats)
+        if return_feats:
+            feats = nn.functional.normalize(feats, p=2.0, dim=1)
+            return classifier_out, feats
+        else:
+            return classifier_out

@@ -1,0 +1,4 @@
+base: '/shared/youngkim/hw2p2'
+submissions: '/shared/youngkim/hw2p2/submissions/'
+weights: '/shared/youngkim/hw2p2/weights/'
+pretrained: '/shared/youngkim/hw2p2/weights/best_model.pth'
