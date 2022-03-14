@@ -4,32 +4,37 @@ defaults:
   - _self_
   - path: server.yaml
 
-save_name: 'vgg16'
-device: 'cuda:0'
+save_name: 'resnet50(4462)_softtriple_sgd0.05_noschedule'
+device: 'cuda:2'
 
 DEBUG: False
 
 # learning
 resume: False
-epoch: 25
-es_patience: 3 # if es_patient == 0, do not early stop.
-criterion: CrossEntropyLoss
-scheduler: CosineAnnealingLR # ReduceLROnPlateau, CosineAnnealingLR
+epoch: 50
+es_patience: 0 # if es_patient == 0, do not early stop.
 mixed_precision: True
 
+# loss
+metric: SoftTripleLoss
+criterion: CrossEntropyLoss
+label_smoothing: 0
+
 # data
-batch_size: 128
+batch_size: 256
 
 # model
+model: resnet # vgg19, mobilenet, resnet, resnet50, eff_b4
 batchnorm: True
 
 # optimizer
-optimizer: adamw # adamw, sgd, sam
-lr: 0.01
-weight_decay: 0.001
+optimizer: sgd # adamw, sgd
+scheduler: None # ReduceLROnPlateau, CosineAnnealingLR, None
+lr: 0.005
+weight_decay: 0.01
 lr_factor: 0.1
 lr_patience: 1
 momentum: 0.9
 
 # regularization
-rdrop: 0
+# rdrop: 0

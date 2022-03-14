@@ -2,6 +2,7 @@ from copy import deepcopy
 import os
 from tqdm import tqdm
 from glob import glob
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -12,6 +13,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as ttf
 from torch.cuda.amp import GradScaler, autocast
+from pytorch_metric_learning import losses
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from sklearn.metrics import accuracy_score, roc_auc_score
@@ -20,6 +22,9 @@ from omegaconf import OmegaConf
 import wandb
 
 from models.cnn import BaselineCNN, VGG16
+from models.mobilenet import MobileNetV2
+import timm
+from models.resnet import myresnet, resnet50, resnet34
 from datasets.classification import ClassificationTestSet
 from datasets.verification import VerificationDataset
 from datasets.transform import AlbumTransforms, train_transforms, val_transforms
@@ -28,7 +33,7 @@ from utils.utils import weight_decay_custom, compute_kl_loss, SAM
 
 torch.backends.cudnn.benchmark = True
 
-def train(cfg, model, device, train_loader, optimizer, criterion, epoch, scaler, scheduler):
+def train(cfg, model, device, train_loader, optimizer, metric, criterion, epoch, scaler, scheduler, loss_optimizer=None):
     model.train()
 
     losses = []
@@ -38,51 +43,32 @@ def train(cfg, model, device, train_loader, optimizer, criterion, epoch, scaler,
         true_y = true_y.to(device)
 
         optimizer.zero_grad()
-        if cfg.rdrop:
-            '''
-            R-drop method
-            https://github.com/dropreg/R-Drop
-            '''
-            if cfg.mixed_precision:
-                with autocast():
-                    output = model(data)
-                    output2 = model(data)
-                    ce_loss = 0.5 * (criterion(output, true_y) + criterion(output2, true_y))
-                    kl_loss = compute_kl_loss(output, output2)
-                    # carefully choose hyper-parameters
-                    loss = ce_loss + cfg.rdrop * kl_loss
-            else:        
-                output = model(data)
-                output2 = model(data)
-                ce_loss = 0.5 * (criterion(output, true_y) + criterion(output2, true_y))
-                kl_loss = compute_kl_loss(output, output2)
-                # carefully choose hyper-parameters
-                loss = ce_loss + cfg.rdrop * kl_loss
+        if loss_optimizer:
+            loss_optimizer.zero_grad()
+    
+        if cfg.mixed_precision:
+            with autocast():
+                output, feats = model(data, return_feats=True)
+                st_loss = metric(feats, true_y)
+                ce_loss = criterion(output, true_y)
+                loss = st_loss + ce_loss
         else:
-            if cfg.mixed_precision:
-                with autocast():
-                    output = model(data)
-                    loss = criterion(output, true_y)    
-            else:
-                output = model(data)
-                loss = criterion(output, true_y)
+            output, feats = model(data, return_feats=True)
+            st_loss = metric(feats)
+            ce_loss = criterion(output, true_y)
+            loss = st_loss + ce_loss
         
-        if cfg.mixed_precision and cfg.optimizer.lower() != 'sam':
+        if cfg.mixed_precision:
             scaler.scale(loss).backward()
             scaler.step(optimizer)
+            if loss_optimizer:
+                scaler.step(loss_optimizer)
             scaler.update()
         else:
-            if cfg.optimizer.lower() == 'sam':
-                # first forward-backward pass
-                loss.backward()
-                optimizer.first_step(zero_grad=True)
-                
-                # second forward-backward pass
-                criterion(model(data), true_y).backward()  # make sure to do a full forward pass
-                optimizer.second_step(zero_grad=True)
-            else:
-                loss.backward()
-                optimizer.step()
+            loss.backward()
+            optimizer.step()
+            if loss_optimizer:
+                loss_optimizer.step()
 
         pred_y = torch.argmax(output, axis=1)
         pred_y_list.extend(pred_y.tolist())
@@ -218,9 +204,11 @@ def gen_ver_submission(cfg, predictions):
 
 @hydra.main(config_path='configs', config_name='config')
 def main(cfg):
+    now = datetime.now()
+    dt_string = now.strftime("%d:%H:%M:%S")
 
     if not cfg.DEBUG:
-        wandb.init(project="cmu-hw2p2", entity="normalkim", config=cfg, name=cfg.save_name)
+        wandb.init(project="cmu-hw2p2", entity="normalkim", config=cfg, name=f'{cfg.save_name}-{dt_string}')
     print(OmegaConf.to_yaml(cfg))
     if cfg.mixed_precision:
         scaler = GradScaler()
@@ -270,7 +258,19 @@ def main(cfg):
                                                   shuffle=False, num_workers=1)
     
     device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
-    model = VGG16().to(device)
+    if cfg.model == 'vgg19':
+        model = VGG16().to(device)
+    elif cfg.model == 'mobilenet':
+        model = MobileNetV2().to(device)
+    elif cfg.model == 'resnet':
+        model = myresnet().to(device)
+    elif cfg.model == 'resnet34':
+        model = resnet34().to(device)
+    elif cfg.model == 'resnet50':
+        model = resnet50().to(device)
+        # model = timm.create_model('resnet50', num_classes=7000).to(device)
+    elif cfg.model == 'eff_b4':
+        model = timm.create_model('efficientnet_b4', num_classes=7000).to(device)
     print(model)
 
     # For this homework, we're limiting you to 35 million trainable parameters, as
@@ -282,6 +282,13 @@ def main(cfg):
     print(f"Number of Params: {num_trainable_parameters}") 
     print(f"Less than 35m? {num_trainable_parameters<35000000}")
     
+    if cfg.metric == 'SoftTripleLoss':
+        metric = losses.SoftTripleLoss(7000, 2048).to(device)
+        loss_optimizer = optim.SGD(metric.parameters(), lr=0.01)
+    if cfg.criterion == 'CrossEntropyLoss':
+        criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing).to(device)
+        loss_optimizer = None
+        
     if cfg.weight_decay:
         wd_params = weight_decay_custom(model, cfg)
 
@@ -290,17 +297,13 @@ def main(cfg):
         optimizer = optim.AdamW(wd_params, lr=cfg.lr, weight_decay=cfg.weight_decay)
     elif cfg.optimizer.lower() == 'sgd':
         optimizer = optim.SGD(wd_params, lr=cfg.lr, weight_decay=cfg.weight_decay, momentum=cfg.momentum)
-    elif cfg.optimizer.lower() == 'sam':
-        base_optimizer = optim.AdamW
-        optimizer = SAM(wd_params, base_optimizer, lr=cfg.lr)
-
-    if cfg.criterion == 'CrossEntropyLoss':
-        criterion = nn.CrossEntropyLoss()
 
     if cfg.scheduler == 'ReduceLROnPlateau':
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=cfg.lr_factor, patience=cfg.lr_patience, verbose=True)
     elif cfg.scheduler == 'CosineAnnealingLR':
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=(len(train_loader) * cfg.epoch))
+    else:
+        scheduler = None
 
     start_epoch = 0
     if cfg.resume:
@@ -312,7 +315,7 @@ def main(cfg):
 
     best_valid_acc, es_patience = 0, 0
     for epoch in range(start_epoch, start_epoch + cfg['epoch']):
-        train_loss, train_acc = train(cfg, model, device, train_loader, optimizer, criterion, epoch, scaler, scheduler)
+        train_loss, train_acc = train(cfg, model, device, train_loader, optimizer, metric, criterion, epoch, scaler, scheduler, loss_optimizer)
         print(f'\nEpoch: {epoch}')
         print(f'Train Loss: {train_loss:.6f}\tAcc: {train_acc:.4f}')
         valid_loss, valid_acc = test(cfg, model, device, valid_loader, criterion)
@@ -335,9 +338,9 @@ def main(cfg):
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': valid_loss,
                 'acc': valid_acc,
-            }, os.path.join(cfg.path.weights, f'{cfg.save_name}.pth')) 
+            }, os.path.join(cfg.path.weights, f'{cfg.save_name}-{dt_string}.pth')) 
             es_patience = 0
-            print(f'Epoch {epoch} Model saved. ({cfg.save_name}.pth)')
+            print(f'Epoch {epoch} Model saved. ({cfg.save_name}-{dt_string}.pth)')
         else:
             es_patience += 1
             print(f"Valid acc. decreased. Current early stop patience is {es_patience}")
