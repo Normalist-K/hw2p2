@@ -44,7 +44,7 @@ class BottleNeck(nn.Module):
 
 
 class ConvNext(nn.Module):
-    def __init__(self, block, block_nums, num_classes=7000) -> None:
+    def __init__(self, block, block_nums, num_classes=7000, dropout=0) -> None:
         super().__init__()
 
         self.num_classes = num_classes
@@ -75,7 +75,31 @@ class ConvNext(nn.Module):
         self.stage = nn.ModuleList([stage1, stage2, stage3, stage4])
 
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Linear(dims[3], self.num_classes)
+        # self.embedding = nn.Linear(dims[3], dims[3], bias=False)
+        # if dropout == 0:
+        #     self.classifier = nn.Sequential(
+        #         nn.BatchNorm1d(dims[3]),
+        #         nn.GELU(),
+        #         nn.Linear(dims[3], self.num_classes)
+        #     )
+        # else:
+        #     self.classifier = nn.Sequential(
+        #         nn.BatchNorm1d(dims[3]),
+        #         nn.GELU(),
+        #         nn.Dropout(dropout),
+        #         nn.Linear(dims[3], self.num_classes)
+        #     )
+        if dropout == 0:
+            self.classifier = nn.Linear(dims[3], 7000)
+        else:
+            self.classifier = nn.Sequential(
+                nn.Linear(dims[3], dims[3], bias=False),
+                nn.BatchNorm1d(dims[3]),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(dims[3], self.num_classes)
+            )
+        
 
         self.apply(self._initialize_weights)
 
@@ -90,6 +114,9 @@ class ConvNext(nn.Module):
             trunc_normal_(m.weight, std=.02)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
+        elif isinstance(m, (nn.BatchNorm2d, nn.BatchNorm1d)):
+            nn.init.ones_(m.weight)
+            nn.init.zeros_(m.bias)
 
     def forward(self, x, return_feats=False):
         for i in range(4):
@@ -98,6 +125,7 @@ class ConvNext(nn.Module):
 
         avg_out = self.avgpool(x)
         feats = avg_out.reshape(avg_out.size(0), -1)
+        # feats = self.embedding(feats)
         classifier_out = self.classifier(feats)
         if return_feats:
             feats = nn.functional.normalize(feats, p=2.0, dim=1)
@@ -106,15 +134,17 @@ class ConvNext(nn.Module):
             return classifier_out
 
 
-def convnext_t():
-    return ConvNext(BottleNeck, [3,3,9,3])
+def convnext_t(dropout=0):
+    return ConvNext(BottleNeck, [3,3,9,3], dropout=dropout)
 
+def my_convnext(dropout=0, block_nums=[5,9,9,2]):
+    return ConvNext(BottleNeck, block_nums, dropout=dropout)
 
 if __name__ == '__main__':
     from torchsummary import summary
 
     device = 'cpu'
-    model = convnext_t().to(device)
+    model = my_convnext().to(device)
 
     num_trainable_parameters = 0
     for p in model.parameters():

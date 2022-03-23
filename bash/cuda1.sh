@@ -1,0 +1,62 @@
+# python run.py save_name=convnext-emb-adamw0.001-wd0.1-ls0.1 \
+#               device=cuda:1 \
+#               epoch=50 \
+#               model=convnext_t \
+#               scheduler=CosineAnnealingLR \
+#               optimizer=adamw \
+#               lr=0.001 \
+#               weight_decay=0.1 \
+#               label_smoothing=0.1
+
+# python run.py save_name=convnext-emb-adamw0.001-wd0.1-ls0.1 \
+#               device=cuda:1 \
+#               epoch=100 \
+#               model=convnext_t \
+#               scheduler=CosineAnnealingLR \
+#               optimizer=adamw \
+#               lr=0.001 \
+#               weight_decay=0.1 \
+#               label_smoothing=0.1
+
+# python run.py save_name=convnext-adamw0.001-wd0.1-ls0.1 \
+#               device=cuda:1 \
+#               epoch=80 \
+#               model=convnext_t \
+#               scheduler=CosineAnnealingLR \
+#               optimizer=adamw \
+#               lr=0.001 \
+#               weight_decay=0.1 \
+#               label_smoothing=0.1
+
+# python run.py save_name=resnet50-4662-softtriple-sgd0.01-ls0.1 \
+#               device=cuda:1 \
+#               epoch=100 \
+#               model=resnet \
+#               scheduler=CosineAnnealingLR \
+#               optimizer=sgd
+#               lr=0.01 \
+#               label_smoothing=0.1 
+
+# python run.py save_name=convnext-4772-sgd0.001 \
+#               device=cuda:1 \
+#               epoch=80 \
+#               model=my_convnext \
+#               block_nums=[4,7,7,2] \
+#               scheduler=CosineAnnealingLR \
+#               optimizer=sgd \
+#               lr=0.001 \
+#               weight_decay=0.1 \
+#               label_smoothing=0.1 \
+#               dropout=0
+
+python run.py save_name=convnext-5992 \
+              device=cuda:1 \
+              epoch=80 \
+              model=my_convnext \
+              block_nums=[5,8,8,2] \
+              scheduler=CosineAnnealingLR \
+              optimizer=adamw \
+              lr=0.001 \
+              weight_decay=0.1 \
+              label_smoothing=0.1 \
+              dropout=0
