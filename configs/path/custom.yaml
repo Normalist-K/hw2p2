@@ -1,0 +1,4 @@
+base: 'YOUR_OWN_PATH'
+submissions: 'YOUR_OWN_PATH/submissions/'
+weights: 'YOUR_OWN_PATH/weights/'
+pretrained: 'YOUR_OWN_PATH/weights/resnet50-4662-softtriple-sgd0.01-ls0.1-15:19:40:04.pth'

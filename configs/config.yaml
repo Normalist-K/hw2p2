@@ -2,9 +2,9 @@
 
 defaults:
   - _self_
-  - path: server.yaml
+  - path: custom.yaml
 
-save_name: 'resnext-softtriple-sgd0.01'
+save_name: 'convnext-4772'
 dt_string: None
 device: 'cuda:0'
 
@@ -19,7 +19,7 @@ mixed_precision: True
 # loss
 metric: SoftTripleLoss # SoftTripleLoss, TripletMarginLoss
 criterion: CrossEntropyLoss
-label_smoothing: 0
+label_smoothing: 0.1
 
 # data
 batch_size: 256
